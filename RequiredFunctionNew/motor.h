@@ -16,5 +16,11 @@ void resetEncoderCounts();
 // Average encoder ticks (for distance moves)
 long getAverageEncoderCount();
 
+// Individual encoder counts (for display/debugging)
+long getFrontLeftEncoderCount();
+long getFrontRightEncoderCount();
+long getBackLeftEncoderCount();
+long getBackRightEncoderCount();
+
 // Perform encoder-based motor sync adjustments (call periodically)
 void motorSyncService();

@@ -3,18 +3,18 @@
 // OLED
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
-#define OLED_RESET 28
+#define OLED_RESET -1
 #define SCREEN_ADDRESS 0x3C
 
 // Movement tuning
-#define MAIN_SPEED 60
-#define TURN_SPEED 110
-#define MOTOR_SYNC_DELAY 250
+const int MAIN_SPEED = 40;
+const int TURN_SPEED = 40;
+const int MOTOR_SYNC_DELAY = 250; // Delay before motor sync starts adjusting PWM
 
 const float TICKS_PER_CM = 18.0;   // tune: Number of encoder ticks for 1 cm of wheel travel
 const float CM_PER_TICK = 1.0 / TICKS_PER_CM; // Distance in CM per single encoder tick (for localization)
-const float ROBOT_WHEEL_BASE_CM = 20.0; // **IMPORTANT: Tune this value based on your robot's physical dimensions (distance between left and right wheels)**
-const int WALL_EQUAL_TOLERANCE_CM = 4;
+const int WALL_EQUAL_TOLERANCE_CM = 1;
+const int ALIGN_CONFIRMATION_TIME = 2000; // ms
 
 // Pins
 #define FRONT_RIGHT_PWM 12
@@ -41,10 +41,10 @@ const int WALL_EQUAL_TOLERANCE_CM = 4;
 #define BACK_LEFT_EN_A 2
 #define BACK_LEFT_EN_B A1
 
-#define BACK_LEFT_US_TRIG A9
-#define BACK_LEFT_US_ECHO A8
-#define BACK_RIGHT_US_TRIG A11
-#define BACK_RIGHT_US_ECHO A10
+#define LEFT_US_TRIG A9
+#define LEFT_US_ECHO A8
+#define RIGHT_US_TRIG A11
+#define RIGHT_US_ECHO A10
 
 // Movement IDs
 #define moveForward 0
