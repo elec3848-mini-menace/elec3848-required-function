@@ -40,10 +40,6 @@ void loop() {
     alignWithWallUsingUltrasonic();
     delay(300);
 
-    oledShowText("Forward");
-    moveForwardDistanceCM(30.0);
-    delay(300);
-
     stopRobot();
     oledShowText("Done");
     missionDone = true;

@@ -87,28 +87,28 @@ void moveRobot(int dir, int pwm) {
       digitalWrite(FRONT_LEFT_BACKWARD, LOW);
       digitalWrite(FRONT_LEFT_FORWARD, HIGH);
 
-      digitalWrite(FRONT_RIGHT_BACKWARD, HIGH);
-      digitalWrite(FRONT_RIGHT_FORWARD, LOW);
+      digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
+      digitalWrite(FRONT_RIGHT_FORWARD, HIGH);
 
       digitalWrite(BACK_LEFT_BACKWARD, LOW);
       digitalWrite(BACK_LEFT_FORWARD, HIGH);
 
-      digitalWrite(BACK_RIGHT_BACKWARD, HIGH);
-      digitalWrite(BACK_RIGHT_FORWARD, LOW);
+      digitalWrite(BACK_RIGHT_BACKWARD, LOW);
+      digitalWrite(BACK_RIGHT_FORWARD, HIGH);
       break;
 
     case moveBackward:
       digitalWrite(FRONT_LEFT_BACKWARD, HIGH);
       digitalWrite(FRONT_LEFT_FORWARD, LOW);
 
-      digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
-      digitalWrite(FRONT_RIGHT_FORWARD, HIGH);
+      digitalWrite(FRONT_RIGHT_BACKWARD, HIGH);
+      digitalWrite(FRONT_RIGHT_FORWARD, LOW);
 
       digitalWrite(BACK_LEFT_BACKWARD, HIGH);
       digitalWrite(BACK_LEFT_FORWARD, LOW);
 
-      digitalWrite(BACK_RIGHT_BACKWARD, LOW);
-      digitalWrite(BACK_RIGHT_FORWARD, HIGH);
+      digitalWrite(BACK_RIGHT_BACKWARD, HIGH);
+      digitalWrite(BACK_RIGHT_FORWARD, LOW);
       break;
 
     case moveLeft:
@@ -143,11 +143,11 @@ void moveRobot(int dir, int pwm) {
       digitalWrite(FRONT_LEFT_BACKWARD, LOW);
       digitalWrite(FRONT_LEFT_FORWARD, HIGH);
 
-      digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
-      digitalWrite(FRONT_RIGHT_FORWARD, HIGH);
+      digitalWrite(FRONT_RIGHT_BACKWARD, HIGH);
+      digitalWrite(FRONT_RIGHT_FORWARD, LOW);
 
-      digitalWrite(BACK_LEFT_BACKWARD, HIGH);
-      digitalWrite(BACK_LEFT_FORWARD, LOW);
+      digitalWrite(BACK_LEFT_BACKWARD, LOW);
+      digitalWrite(BACK_LEFT_FORWARD, HIGH);
 
       digitalWrite(BACK_RIGHT_BACKWARD, HIGH);
       digitalWrite(BACK_RIGHT_FORWARD, LOW);
@@ -157,11 +157,11 @@ void moveRobot(int dir, int pwm) {
       digitalWrite(FRONT_LEFT_BACKWARD, HIGH);
       digitalWrite(FRONT_LEFT_FORWARD, LOW);
 
-      digitalWrite(FRONT_RIGHT_BACKWARD, HIGH);
-      digitalWrite(FRONT_RIGHT_FORWARD, LOW);
+      digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
+      digitalWrite(FRONT_RIGHT_FORWARD, HIGH);
 
-      digitalWrite(BACK_LEFT_BACKWARD, LOW);
-      digitalWrite(BACK_LEFT_FORWARD, HIGH);
+      digitalWrite(BACK_LEFT_BACKWARD, HIGH);
+      digitalWrite(BACK_LEFT_FORWARD, LOW);
 
       digitalWrite(BACK_RIGHT_BACKWARD, LOW);
       digitalWrite(BACK_RIGHT_FORWARD, HIGH);
@@ -213,8 +213,42 @@ long getAverageEncoderCount() {
   return total / 4;
 }
 
+// --- New functions for individual encoder counts ---
+long getFrontLeftEncoderCount() {
+  noInterrupts();
+  long count = frontLeftCount;
+  interrupts();
+  return count;
+}
+
+long getFrontRightEncoderCount() {
+  noInterrupts();
+  long count = frontRightCount;
+  interrupts();
+  return count;
+}
+
+long getBackLeftEncoderCount() {
+  noInterrupts();
+  long count = backLeftCount;
+  interrupts();
+  return count;
+}
+
+long getBackRightEncoderCount() {
+  noInterrupts();
+  long count = backRightCount;
+  interrupts();
+  return count;
+}
+// --- End new functions ---
+
 void motorSyncService() {
   if (millis() - startMoveMillis > MOTOR_SYNC_DELAY) {
+
+    // Note: This motor synchronization logic uses frontLeft as a reference.
+    // It adjusts PWMs to try and keep speeds consistent.
+    // This is separate from localization, which uses the cumulative counts.
 
     if (currentMicrosFrontRight > currentMicrosFrontLeft) {
       frontRightPWM++;
