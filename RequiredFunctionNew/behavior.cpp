@@ -19,13 +19,19 @@ enum AlignWallSubState {
     ALIGN_CHECK,
     ALIGN_TURN_LEFT,
     ALIGN_TURN_RIGHT,
-    ALIGN_TURN_DELAY,
-    ALIGN_COMPLETE
+    ALIGN_TURN_DELAY,       
+    ALIGN_CONFIRM_MEASURE_LEFT,
+    ALIGN_CONFIRM_MEASURE_RIGHT,
+    ALIGN_MOVING_TO_TARGET_DIST,
+    ALIGN_MOVING_TO_TARGET_DIST_MEASURE_LEFT,
+    ALIGN_MOVING_TO_TARGET_DIST_MEASURE_RIGHT,
+    ALIGN_DONE                 
 };
 static AlignWallSubState currentAlignSubState = ALIGN_INIT;
 static unsigned long lastActionTime = 0;
 static int currentLeftDist = 0;
 static int currentRightDist = 0;
+static int alignmentConfirmationCount = 0;
 
 void setupBehaviors() {
     currentRobotState = IDLE;
@@ -48,7 +54,8 @@ void startAlignWithWallUsingUltrasonic() {
     Serial.println("Start wall alignment");
     currentRobotState = ALIGNING_WALL;
     currentAlignSubState = ALIGN_INIT;
-    lastActionTime = millis(); // Initialize timer
+    lastActionTime = millis();
+    alignmentConfirmationCount = 0;
     oledShowText("Aligning Wall", "L:--- R:---");
 }
 
@@ -100,7 +107,8 @@ void updateBehaviors() {
 				case ALIGN_CHECK:
 					oledShowText("Aligning Wall", "L:" + String(currentLeftDist) + " R:" + String(currentRightDist));
 
-					if (currentLeftDist >= 300 || currentRightDist >= 300 || currentLeftDist <= 0) {
+					// Check for invalid ultrasonic readings (out of range or 0)
+					if (currentLeftDist >= 300 || currentRightDist >= 300 || currentLeftDist <= 0 || currentRightDist <= 0) {
 						stopRobot();
 						Serial.println("Invalid ultrasonic reading, re-measuring...");
 						currentAlignSubState = ALIGN_MEASURE_LEFT; // Go back to measure
@@ -109,9 +117,12 @@ void updateBehaviors() {
 					}
 
 					if (abs(currentLeftDist - currentRightDist) <= WALL_EQUAL_TOLERANCE_CM) {
-						stopRobot();
-						Serial.println("Wall aligned within tolerance.");
-						currentAlignSubState = ALIGN_COMPLETE;
+						// Initial alignment detected, start confirmation process
+						stopRobot(); // Stop while confirming alignment
+						Serial.println("Alignment detected, starting confirmation...");
+						alignmentConfirmationCount = 0;
+						currentAlignSubState = ALIGN_CONFIRM_MEASURE_LEFT;
+						lastActionTime = currentMillis; // Reset for measurement delay in confirming state
 					} else if (currentLeftDist > currentRightDist) {
 						Serial.println("Turn RIGHT");
 						moveRobot(moveClockwise, TURN_SPEED);
@@ -133,15 +144,108 @@ void updateBehaviors() {
 					}
 					break;
 
-				case ALIGN_COMPLETE:
-						currentRobotState = BEHAVIOR_COMPLETE;
-						Serial.println("Wall alignment complete.");
-						oledShowText("Wall Aligned!", "Done.");
+				case ALIGN_CONFIRM_MEASURE_LEFT:
+					oledShowText("Confirming Align", "L:--- R:" + String(currentRightDist));
+
+					if (currentMillis - lastActionTime >= 50) {   // wait before left measurement
+						currentLeftDist = getUltrasonicCM(0);
+						lastActionTime = currentMillis;             // start timer for right measurement
+						currentAlignSubState = ALIGN_CONFIRM_MEASURE_RIGHT;
+					}
+					break;
+
+				case ALIGN_CONFIRM_MEASURE_RIGHT:
+					oledShowText("Confirming Align", "L:" + String(currentLeftDist) + " R:---");
+
+					if (currentMillis - lastActionTime >= 50) {   // wait before right measurement
+						currentRightDist = getUltrasonicCM(1);
+						lastActionTime = currentMillis;             // timer for next confirmation cycle
+
+						if (abs(currentLeftDist - currentRightDist) <= WALL_EQUAL_TOLERANCE_CM) {
+							alignmentConfirmationCount++;
+							Serial.print("Confirmed count: "); Serial.println(alignmentConfirmationCount);
+
+							if (alignmentConfirmationCount >= ALIGNMENT_CONFIRMATION_THRESHOLD) {
+								stopRobot();
+								Serial.println("Wall alignment confirmed and stable.");
+								currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST;
+								lastActionTime = currentMillis;
+								oledShowText("Alignment Confirmed!",
+											"Moving to " + String(TARGET_WALL_DISTANCE_CM) + "cm");
+							} else {
+								// keep confirming: go measure-left again
+								currentAlignSubState = ALIGN_CONFIRM_MEASURE_LEFT;
+							}
+						} else {
+							Serial.println("Alignment lost during confirmation, re-aligning.");
+							alignmentConfirmationCount = 0;
+							currentAlignSubState = ALIGN_MEASURE_LEFT; // or ALIGN_MEASURE_LEFT stage
+						}
+					}
+					break;
+
+				case ALIGN_MOVING_TO_TARGET_DIST:
+                    moveRobot(moveForward, MAIN_SPEED);
+                    Serial.print("Moving to target distance: ");
+                    Serial.print(TARGET_WALL_DISTANCE_CM);
+                    Serial.println("cm");
+
+                    // Kick off first left measurement
+                    currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST_MEASURE_LEFT;
+                    lastActionTime = currentMillis; // start timer for left
+					break;
+
+				case ALIGN_MOVING_TO_TARGET_DIST_MEASURE_LEFT:
+					// wait interval to let reflections settle before pinging left
+					if (currentMillis - lastActionTime >= 10) {
+						currentLeftDist = getUltrasonicCM(0);
+						lastActionTime = currentMillis;
+
+						// next: schedule right measurement after a gap
+						currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST_MEASURE_RIGHT;
+					}
+					break;
+
+				case ALIGN_MOVING_TO_TARGET_DIST_MEASURE_RIGHT:
+					if (currentMillis - lastActionTime >= 10) {
+						currentRightDist = getUltrasonicCM(1);
+						lastActionTime = currentMillis;
+
+						// Check for invalid ultrasonic readings
+						if (currentLeftDist >= 300 || currentRightDist >= 300 ||
+							currentLeftDist <= 0   || currentRightDist <= 0) {
+							stopRobot();
+							Serial.println("Invalid ultrasonic reading while moving to target, stopping.");
+							currentAlignSubState = ALIGN_DONE;
+							break;
+						}
+
+						int averageDist = (currentLeftDist + currentRightDist) / 2;
+						oledShowText("To " + String(TARGET_WALL_DISTANCE_CM) + "cm",
+									"Avg:" + String(averageDist) + "cm");
+
+						if (averageDist <= TARGET_WALL_DISTANCE_CM + DISTANCE_TOLERANCE_CM) {
+							stopRobot();
+							Serial.print("Reached target distance of ");
+							Serial.print(TARGET_WALL_DISTANCE_CM);
+							Serial.println("cm.");
+							currentAlignSubState = ALIGN_DONE;
+						} else {
+							// keep moving: next cycle starts with left again
+							currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST_MEASURE_LEFT;
+						}
+					}
+					break;
+
+				case ALIGN_DONE: // NEW STATE: Final completion for the alignment behavior
+					currentRobotState = BEHAVIOR_COMPLETE;
+					Serial.println("Wall alignment and distance adjustment complete.");
+					oledShowText("Wall Aligned!", "Dist: " + String(TARGET_WALL_DISTANCE_CM) + "cm");
 					break;
 			}
 			break;
 
-			case BEHAVIOR_COMPLETE:
+        case BEHAVIOR_COMPLETE:
 			// A specific behavior (like move or align) has completed.
 			// The main loop (in .ino) will decide the next action.
 			break;

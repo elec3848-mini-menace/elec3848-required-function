@@ -35,7 +35,7 @@ int getUltrasonicCM(int sensor) {
 	delayMicroseconds(10);
 	digitalWrite(trigPin, LOW);
 
-	long duration = pulseIn(echoPin, HIGH, 50000);
+	long duration = pulseIn(echoPin, HIGH);
 	int cm = (duration / 2) / 29.1;
 
 	if (cm <= 0 || cm > 250) {

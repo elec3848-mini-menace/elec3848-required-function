@@ -1,3 +1,4 @@
+// RequiredFunctionNew/config_pins.h
 #pragma once
 
 // OLED
@@ -12,9 +13,13 @@ const int TURN_SPEED = 40;
 const int MOTOR_SYNC_DELAY = 250; // Delay before motor sync starts adjusting PWM
 
 const float TICKS_PER_CM = 18.0;   // tune: Number of encoder ticks for 1 cm of wheel travel
-const float CM_PER_TICK = 1.0 / TICKS_PER_CM; // Distance in CM per single encoder tick (for localization)
+const float CM_PER_TICK = 1.0 / TICKS_PER_CM;
 const int WALL_EQUAL_TOLERANCE_CM = 1;
-const int ALIGN_CONFIRMATION_TIME = 2000; // ms
+
+// Constants for enhanced wall alignment
+const int ALIGNMENT_CONFIRMATION_THRESHOLD = 5;
+const int TARGET_WALL_DISTANCE_CM = 8;
+const int DISTANCE_TOLERANCE_CM = 1;
 
 // Pins
 #define FRONT_RIGHT_PWM 12
