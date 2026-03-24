@@ -6,12 +6,32 @@ enum RobotState {
     IDLE,
     MOVING_FORWARD_DISTANCE,
     ALIGNING_WALL,
-    BEHAVIOR_COMPLETE // Indicates a specific behavior task has finished
+    ALIGNING_SIDE_WALL,       
+    ALIGNING_TO_LIGHT_SOURCE, 
+    DETECTING_COLOR,      
+    TURNING_BASED_ON_COLOR, 
+    BEHAVIOR_COMPLETE
 };
 
-extern RobotState currentRobotState; // Global state variable
+extern RobotState currentRobotState;
 
-void setupBehaviors(); // Initialize behavior state machine
-void updateBehaviors(); // Non-blocking update function for current behavior
-void startMoveForwardDistanceCM(float distanceCM); // Initiates a non-blocking move
-void startAlignWithWallUsingUltrasonic(); // Initiates a non-blocking wall alignment
+// Initialize behavior state machine
+void setupBehaviors(); 
+
+// Non-blocking update function for current behavior
+void updateBehaviors();
+
+// Initiates a non-blocking move
+void startMoveForwardDistanceCM(float distanceCM);
+
+// Initiates a non-blocking wall alignment
+void startAlignWithWallUsingUltrasonic(); 
+
+// Function to start aligning with the side wall
+void startAlignWithSideWall(float targetDistanceCM);
+
+// Function to start aligning to a light source
+void startAlignToLightSource();
+
+// Function to start detecting color and turning
+void startDetectColorAndTurn();
