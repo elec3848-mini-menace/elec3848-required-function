@@ -13,6 +13,7 @@ enum LightSensorID {
 };
 
 void setupSensors();
+void calibrateLightSensor();
 int getUltrasonicCM(UltrasonicSensorID sensor_id);
 
 int getLightSensor(LightSensorID sensor_id);

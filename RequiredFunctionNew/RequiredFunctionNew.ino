@@ -38,8 +38,10 @@ void setup() {
     Serial.println("Robot Starting Up...");
 
     setupMotor();
-    setupSensors(); // This now sets up all sensors (US, Light, Color)
     setupDisplay();
+    setupSensors(); // This now sets up all sensors (US, Light, Color)
+		calibrateLightSensor(); // calibrate
+
     setupBehaviors();  // Initialize the behavior state machine
 
     oledShowText("Robot Ready", "Waiting...");

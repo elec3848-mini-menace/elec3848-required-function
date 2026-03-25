@@ -1,6 +1,7 @@
 #include "sensors.h"
 #include "config_pins.h"
 #include <Arduino.h>
+#include "oled.h"
 
 void setupSensors() {
 	pinMode(LEFT_US_TRIG, OUTPUT);
@@ -26,6 +27,42 @@ void setupSensors() {
     digitalWrite(COLOR_S1, LOW);
 
 	Serial.println("Sensors setup complete.");
+}
+
+
+//variables for light intensity to ADC reading equations 
+int int_adc0, int_adc0_m, int_adc0_c;
+int int_adc1, int_adc1_m, int_adc1_c;     
+int int_left, int_right;
+
+void calibrateLightSensor() {
+    // measure the sensors reading at ambient light intensity  
+    oledShowText("Calibration in progress, put the sensors under the light (~ 2 sec) ......");
+    delay(2000);        // delay 5000 ms
+
+    int_adc0=analogRead(LEFT_LIGHT_SENSOR);   // Left sensor at ambient light intensity
+    int_adc1=analogRead(RIGHT_LIGHT_SENSOR);   // Right sensor at ambient light intensity
+    Serial.print("Left : ");
+    Serial.println(int_adc0);
+    Serial.print("Right : ");
+    Serial.println(int_adc1);
+    delay(1000); 
+
+    oledShowText("************ Put Fingers *****************");
+    delay(5000);        // delay 5000 ms
+    Serial.println("********* START Calibration **************");
+    oledShowText("********* START Calibration **************");
+    // measure the sensors reading at zero light intensity  
+    int_adc0_c=analogRead(LEFT_LIGHT_SENSOR);   // Left sensor at zero light intensity
+    int_adc1_c=analogRead(RIGHT_LIGHT_SENSOR);   // Right sensor at zero light intensity
+
+    // calculate the slope of light intensity to ADC reading equations  
+    int_adc0_m=(int_adc0-int_adc0_c)/100;
+    int_adc1_m=(int_adc1-int_adc1_c)/100;
+    delay(3000);     
+    oledShowText("\n******** Completed! Remove your hands ********");
+    oledShowText()
+    delay(2000);        
 }
 
 int getUltrasonicCM(UltrasonicSensorID sensor_id) {
@@ -67,12 +104,13 @@ int getUltrasonicCM(UltrasonicSensorID sensor_id) {
 	return cm;
 }
 
+ // calculate the light intensity of the sensors
 int getLightSensor(LightSensorID sensor_id) {
     switch (sensor_id) {
         case LS_LEFT:
-            return analogRead(LEFT_LIGHT_SENSOR);
+            return (analogRead(LEFT_LIGHT_SENSOR)-int_adc0_c)/int_adc0_m;
         case LS_RIGHT:
-            return analogRead(RIGHT_LIGHT_SENSOR);
+            return (analogRead(RIGHT_LIGHT_SENSOR)-int_adc1_c)/int_adc1_m;
         default:
             return -1; // Error
     }
