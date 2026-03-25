@@ -36,6 +36,8 @@ const int LIGHT_SENSOR_STABLE_COUNT_THRESHOLD = 3; // How many times light senso
 // Constants for color detection and turning
 const int TURN_90_DEGREE_DURATION_MS = 2100; // Approximate duration for a 90-degree turn (needs tuning)
 const int COLOR_READ_DELAY_MS = 50; // Delay between color sensor reads
+const int RED_MIN_PERCENT = 55;
+const int GREEN_MIN_PERCENT = 38;
 
 // Wheels
 #define FRONT_RIGHT_PWM 12

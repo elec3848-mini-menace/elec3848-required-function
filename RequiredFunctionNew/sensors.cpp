@@ -13,6 +13,9 @@ void setupSensors() {
     pinMode(RIGHT_US_TRIG_SIDE, OUTPUT);
     pinMode(RIGHT_US_ECHO_SIDE, INPUT);
 
+    pinMode(LEFT_US_TRIG_SIDE, OUTPUT);
+    pinMode(LEFT_US_ECHO_SIDE, INPUT);
+
     pinMode(LEFT_LIGHT_SENSOR, INPUT);
     pinMode(RIGHT_LIGHT_SENSOR, INPUT);
 
@@ -86,6 +89,9 @@ int getUltrasonicCM(UltrasonicSensorID sensor_id) {
             trigPin = RIGHT_US_TRIG_SIDE;
             echoPin = RIGHT_US_ECHO_SIDE;
             break;
+        case US_SIDE_LEFT:
+            trigPin = LEFT_US_TRIG_SIDE;
+            trigPin = LEFT_US_ECHO_SIDE;
         default:
             // Handle invalid sensor index, return a large value to indicate error
             return 999;
@@ -156,26 +162,30 @@ void readRGBAverage(int &r, int &g, int &b) {
   b = (b1 + b2 + b3) / 3;
 }
 
-// Returns 0 for unknown, 1 for green, 2 for red
 int detectFloorColor() {
     int r, g, b;
     readRGBAverage(r, g, b);
 
-    Serial.print("Color detected - R:"); Serial.print(r);
-    Serial.print(" G:"); Serial.print(g);
-    Serial.print(" B:"); Serial.println(b);
+    // Convert raw pulseIn to Intensity so higher = more color
+    float r_int = (r > 0) ? (10000.0 / r) : 0;
+    float g_int = (g > 0) ? (10000.0 / g) : 0;
+    float b_int = (b > 0) ? (10000.0 / b) : 0;
+    float total = r_int + g_int + b_int;
 
-    // Assuming lower pulseIn value means higher intensity
-    if (r < g && r < b && r < 1000) {
-        Serial.println("RED detected");
-        return 2; // Red
-    }
-    else if (g < r && g < b && g < 1000) {
+    if (total == 0) return 0;
+
+    int rP = (int)((r_int / total) * 100);
+    int gP = (int)((g_int / total) * 100);
+
+    if (gP > GREEN_MIN_PERCENT) {
         Serial.println("GREEN detected");
-        return 1; // Green
+        return 1;
     }
-    else {
-        Serial.println("No clear red or green detected");
-        return 0; // Unknown
+
+    if (rP > RED_MIN_PERCENT) {
+        Serial.println("RED detected");
+        return 2;
     }
+
+    return 0; 
 }
