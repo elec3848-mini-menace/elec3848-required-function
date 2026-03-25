@@ -16,16 +16,16 @@ const int MOTOR_SYNC_DELAY = 250; // Delay before motor sync starts adjusting PW
 const float TICKS_PER_CM = 18.0;   // tune: Number of encoder ticks for 1 cm of wheel travel
 const float CM_PER_TICK = 1.0 / TICKS_PER_CM;
 const int WALL_EQUAL_TOLERANCE_CM = 1;
-const int MOVE_FORWARD_DISTANCE_CM = 15;
+const int MOVE_FORWARD_DISTANCE_CM = 25;
 
 // Constants for enhanced wall alignment
 const int ALIGNMENT_CONFIRMATION_THRESHOLD = 5;
-const int TARGET_WALL_DISTANCE_CM = 18;
+const int TARGET_WALL_DISTANCE_CM = 22;
 const int DISTANCE_TOLERANCE_CM = 1;
 const int ALIGN_TURN_DURATION_MS = 150; // Duration for small corrective turns during alignment
 
 // Constants for side wall alignment
-const int TARGET_SIDE_WALL_DISTANCE_CM = 70;
+const int TARGET_SIDE_WALL_DISTANCE_CM = 60;
 const int SIDE_ALIGN_MOVE_DURATION_MS = 150; // Duration for small strafing movements
 
 // Constants for light sensor alignment

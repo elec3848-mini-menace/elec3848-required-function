@@ -163,7 +163,7 @@ void updateBehaviors() {
 					break;
 
 				case ALIGN_MEASURE_LEFT:
-					if (currentMillis - lastActionTime >= 50) { // Delay before taking left ultrasonic reading
+					if (currentMillis - lastActionTime >= 80) { // Delay before taking left ultrasonic reading
 						currentLeftDist = getUltrasonicCM(US_FRONT_LEFT);
 						lastActionTime = currentMillis; // Reset timer for next action
 						currentAlignSubState = ALIGN_MEASURE_RIGHT;
@@ -171,7 +171,7 @@ void updateBehaviors() {
 					break;
 
 				case ALIGN_MEASURE_RIGHT:
-					if (currentMillis - lastActionTime >= 50) { // Delay before taking right ultrasonic reading
+					if (currentMillis - lastActionTime >= 80) { // Delay before taking right ultrasonic reading
 						currentRightDist = getUltrasonicCM(US_FRONT_RIGHT);
 						lastActionTime = currentMillis; // Reset timer for next action
 						currentAlignSubState = ALIGN_CHECK;
@@ -327,7 +327,7 @@ void updateBehaviors() {
                     break;
 
                 case ALIGN_SIDE_MEASURE:
-                    if (currentMillis - lastActionTime >= 50) { // Delay before taking reading
+                    if (currentMillis - lastActionTime >= 100) { // Delay before taking reading
                         currentSideDist = getUltrasonicCM(US_SIDE_RIGHT);
                         lastActionTime = currentMillis;
                         currentAlignSideSubState = ALIGN_SIDE_CHECK_DIST;
