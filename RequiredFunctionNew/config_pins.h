@@ -70,7 +70,7 @@ const int COLOR_READ_DELAY_MS = 50; // Delay between color sensor reads
 
 // Right-facing Ultrasonic Sensor
 #define RIGHT_US_TRIG_SIDE A6
-#define RIGHT_US_ECHO_SIDE A5
+#define RIGHT_US_ECHO_SIDE A0
 
 // Light Sensors
 #define LEFT_LIGHT_SENSOR A2
