@@ -40,7 +40,7 @@ void setup() {
     setupMotor();
     setupDisplay();
     setupSensors(); // This now sets up all sensors (US, Light, Color)
-		calibrateLightSensor(); // calibrate
+		//calibrateLightSensor(); // calibrate -- turns out don't really need 
 
     setupBehaviors();  // Initialize the behavior state machine
 
@@ -72,7 +72,7 @@ void loop() {
 			}
 			break;
 
-        case MISSION_STEP_MOVE:
+    case MISSION_STEP_MOVE:
 			// Wait for the move forward behavior to complete
 			if (currentRobotState == BEHAVIOR_COMPLETE) {
 				Serial.println("Mission: Step 0 Complete.");
@@ -83,7 +83,7 @@ void loop() {
 			}
 			break;
 
-        case MISSION_STEP_WAIT_0:
+    case MISSION_STEP_WAIT_0:
 			// Short delay
 			if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
 				Serial.println("Mission: Starting Step 1 (Align with Wall)");

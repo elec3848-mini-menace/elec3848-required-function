@@ -31,14 +31,14 @@ void setupSensors() {
 
 
 //variables for light intensity to ADC reading equations 
-int int_adc0, int_adc0_m, int_adc0_c;
-int int_adc1, int_adc1_m, int_adc1_c;     
+int int_adc0, int_adc0_m = 7, int_adc0_c = 120;
+int int_adc1, int_adc1_m = 7, int_adc1_c = 120;     
 int int_left, int_right;
 
 void calibrateLightSensor() {
     // measure the sensors reading at ambient light intensity  
-    oledShowText("Calibration in progress, put the sensors under the light (~ 2 sec) ......");
-    delay(2000);        // delay 5000 ms
+    oledShowText("Calibration in progress, put the sensors under ambient light (~ 2 sec) ......");
+    delay(3000);        // delay 5000 ms
 
     int_adc0=analogRead(LEFT_LIGHT_SENSOR);   // Left sensor at ambient light intensity
     int_adc1=analogRead(RIGHT_LIGHT_SENSOR);   // Right sensor at ambient light intensity
@@ -49,7 +49,7 @@ void calibrateLightSensor() {
     delay(1000); 
 
     oledShowText("************ Put Fingers *****************");
-    delay(5000);        // delay 5000 ms
+    delay(3000);        // delay 5000 ms
     Serial.println("********* START Calibration **************");
     oledShowText("********* START Calibration **************");
     // measure the sensors reading at zero light intensity  
@@ -61,8 +61,11 @@ void calibrateLightSensor() {
     int_adc1_m=(int_adc1-int_adc1_c)/100;
     delay(3000);     
     oledShowText("\n******** Completed! Remove your hands ********");
-    oledShowText()
     delay(2000);        
+    Serial.print("Left : ");
+    Serial.println(int_adc0_m, int_adc0_c);
+    Serial.print("Right : ");
+    Serial.println(int_adc1_m, int_adc1_c);
 }
 
 int getUltrasonicCM(UltrasonicSensorID sensor_id) {
