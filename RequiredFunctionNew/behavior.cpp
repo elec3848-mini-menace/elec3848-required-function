@@ -10,6 +10,9 @@ RobotState currentRobotState = IDLE;
 // Variables for moveForwardDistanceCM state machine
 static float targetDistanceCM = 0;
 static long targetEncoderTicks = 0;
+// For skipping ultrasonic alignment if sensor keeps returning 999
+static int invalidFrontReadingCount = 0;
+static unsigned long invalidFrontStartTime = 0;
 
 // Variables for alignWithWallUsingUltrasonic state machine (front wall)
 enum AlignWallSubState {
@@ -74,6 +77,24 @@ enum ColorTurnSubState {
 static ColorTurnSubState currentColorTurnSubState = COLOR_TURN_INIT;
 static int detectedColor = 0; // 0=unknown, 1=green, 2=red
 
+// Remember the last detected color so the .ino file can choose left/right side sensor
+static int lastDetectedColor = 0; // 0=unknown, 1=green, 2=red
+
+// Variables for post-turn front distance adjustment
+enum PostTurnFrontSubState {
+    POST_TURN_FRONT_INIT,
+    POST_TURN_FRONT_MEASURE_LEFT,
+    POST_TURN_FRONT_MEASURE_RIGHT,
+    POST_TURN_FRONT_CHECK,
+    POST_TURN_FRONT_MOVE_FORWARD,
+    POST_TURN_FRONT_MOVE_BACKWARD,
+    POST_TURN_FRONT_MOVE_DELAY,
+    POST_TURN_FRONT_DONE
+};
+
+static PostTurnFrontSubState currentPostTurnFrontSubState = POST_TURN_FRONT_INIT;
+static float targetPostTurnFrontDistanceCM = 0;
+
 void setupBehaviors() {
     currentRobotState = IDLE;
     Serial.println("Behaviors setup complete.");
@@ -97,20 +118,37 @@ void startAlignWithWallUsingUltrasonic() {
     currentAlignSubState = ALIGN_INIT;
     lastActionTime = millis();
     alignmentConfirmationCount = 0;
+
+    invalidFrontReadingCount = 0;
+    invalidFrontStartTime = 0;
+
     oledShowText("Aligning Front", "L:--- R:---");
 }
 
-// Function to start aligning with the side wall
-void startAlignWithSideWall(float distanceCM) {
+// Function to start aligning with the side wall right
+void startAlignWithSideWallRight(float distanceCM) {
     Serial.print("Start side wall alignment to ");
     Serial.print(distanceCM);
     Serial.println("cm");
-    currentRobotState = ALIGNING_SIDE_WALL;
+    currentRobotState = ALIGNING_SIDE_WALL_RIGHT;
     currentAlignSideSubState = ALIGN_SIDE_INIT;
     lastActionTime = millis();
     targetSideDistanceCM = distanceCM;
     oledShowText("Aligning Side", "Dist:---");
 }
+
+// Function to start aligning with the side wall left
+void startAlignWithSideWallLeft(float distanceCM) {
+    Serial.print("Start side wall alignment to ");
+    Serial.print(distanceCM);
+    Serial.println("cm");
+    currentRobotState = ALIGNING_SIDE_WALL_LEFT;
+    currentAlignSideSubState = ALIGN_SIDE_INIT;
+    lastActionTime = millis();
+    targetSideDistanceCM = distanceCM;
+    oledShowText("Aligning Side", "Dist:---");
+}
+
 
 // Function to start aligning to a light source
 void startAlignToLightSource() {
@@ -129,9 +167,26 @@ void startDetectColorAndTurn() {
     currentColorTurnSubState = COLOR_TURN_INIT;
     lastActionTime = millis();
     detectedColor = 0;
+    lastDetectedColor = 0;
     oledShowText("Detecting Color", "...");
 }
 
+void startAlignPostTurnFrontDistance(float targetDistanceCM) {
+    Serial.print("Start post-turn front distance alignment to ");
+    Serial.print(targetDistanceCM);
+    Serial.println("cm");
+
+    currentRobotState = ALIGNING_POST_TURN_FRONT_DISTANCE;
+    currentPostTurnFrontSubState = POST_TURN_FRONT_INIT;
+    targetPostTurnFrontDistanceCM = targetDistanceCM;
+    lastActionTime = millis();
+
+    oledShowText("Post-Turn Front", "Target:" + String(targetDistanceCM) + "cm");
+}
+
+int getLastDetectedColor() {
+    return lastDetectedColor;
+}
 
 void updateBehaviors() {
     unsigned long currentMillis = millis();
@@ -179,36 +234,56 @@ void updateBehaviors() {
 					break;
 
 				case ALIGN_CHECK:
-					oledShowText("Aligning Front", "L:" + String(currentLeftDist) + " R:" + String(currentRightDist));
+                    oledShowText("Aligning Front", "L:" + String(currentLeftDist) + " R:" + String(currentRightDist));
 
-					// Check for invalid ultrasonic readings (out of range or 0)
-					if (currentLeftDist >= 300 || currentRightDist >= 300 || currentLeftDist <= 0 || currentRightDist <= 0) {
-						stopRobot();
-						Serial.println("Invalid front ultrasonic reading, re-measuring...");
-						currentAlignSubState = ALIGN_MEASURE_LEFT; // Go back to measure
-						lastActionTime = currentMillis; // Delay before next measurement
-						break;
-					}
+                    // Check for invalid ultrasonic readings (out of range or 0)
+                    if (currentLeftDist >= 300 || currentRightDist >= 300 || currentLeftDist <= 0 || currentRightDist <= 0) {
+                        stopRobot();
 
-					if (abs(currentLeftDist - currentRightDist) <= WALL_EQUAL_TOLERANCE_CM) {
-						// Initial alignment detected, start confirmation process
-						stopRobot(); // Stop while confirming alignment
-						Serial.println("Front alignment detected, starting confirmation...");
-						alignmentConfirmationCount = 0;
-						currentAlignSubState = ALIGN_CONFIRM_MEASURE_LEFT;
-						lastActionTime = currentMillis; // Reset for measurement delay in confirming state
-					} else if (currentLeftDist > currentRightDist) {
-						Serial.println("Turn RIGHT");
-						moveRobot(moveClockwise, TURN_SPEED);
-						currentAlignSubState = ALIGN_TURN_DELAY;
-						lastActionTime = currentMillis; // Start timer for turn duration
-					} else { // rightDist > leftDist
-						Serial.println("Turn LEFT");
-						moveRobot(moveCounterclockwise, TURN_SPEED);
-						currentAlignSubState = ALIGN_TURN_DELAY;
-						lastActionTime = currentMillis; // Start timer for turn duration
-					}
-					break;
+                        if (invalidFrontReadingCount == 0) {
+                            invalidFrontStartTime = currentMillis;
+                        }
+
+                        invalidFrontReadingCount++;
+
+                        Serial.print("Invalid front ultrasonic reading. Count = ");
+                        Serial.println(invalidFrontReadingCount);
+
+                        oledShowText("US Invalid",
+                                    "L:" + String(currentLeftDist) + " R:" + String(currentRightDist));
+
+                        if (invalidFrontReadingCount >= ULTRASONIC_999_THRESHOLD ||
+                            (currentMillis - invalidFrontStartTime) >= ULTRASONIC_999_TIMEOUT_MS) {
+                            Serial.println("Ultrasonic stuck at 999 too long. Skipping to next step.");
+                            oledShowText("US Skip", "Proceed Next");
+                            currentAlignSubState = ALIGN_DONE;
+                        } else {
+                            Serial.println("Invalid front ultrasonic reading, re-measuring...");
+                            currentAlignSubState = ALIGN_MEASURE_LEFT;
+                            lastActionTime = currentMillis;
+                        }
+                        break;
+                    } else {
+                        invalidFrontReadingCount = 0;
+                        invalidFrontStartTime = 0;
+                    }
+
+                    if (abs(currentLeftDist - currentRightDist) <= WALL_EQUAL_TOLERANCE_CM) {
+                        alignmentConfirmationCount = 0;
+                        currentAlignSubState = ALIGN_CONFIRM_MEASURE_LEFT;
+                        lastActionTime = currentMillis;
+                    } else if (currentLeftDist > currentRightDist) {
+                        Serial.println("Left > Right, turning RIGHT");
+                        moveRobot(moveClockwise, TURN_SPEED);
+                        currentAlignSubState = ALIGN_TURN_DELAY;
+                        lastActionTime = currentMillis;
+                    } else {
+                        Serial.println("Right > Left, turning LEFT");
+                        moveRobot(moveCounterclockwise, TURN_SPEED);
+                        currentAlignSubState = ALIGN_TURN_DELAY;
+                        lastActionTime = currentMillis;
+                    }
+                    break;
 
 				case ALIGN_TURN_DELAY:
 					if (currentMillis - lastActionTime >= ALIGN_TURN_DURATION_MS) {
@@ -270,46 +345,64 @@ void updateBehaviors() {
 					break;
 
 				case ALIGN_MOVING_TO_TARGET_DIST_MEASURE_LEFT:
-					// wait interval to let reflections settle before pinging left
-					if (currentMillis - lastActionTime >= 10) {
-						currentLeftDist = getUltrasonicCM(US_FRONT_LEFT);
-						lastActionTime = currentMillis;
-
-						// next: schedule right measurement after a gap
-						currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST_MEASURE_RIGHT;
-					}
-					break;
+					
+                    if (currentMillis - lastActionTime >= 10) {
+                        currentLeftDist = getUltrasonicCM(US_FRONT_LEFT);
+                        lastActionTime = currentMillis;
+                        currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST_MEASURE_RIGHT;
+                    }
+                    break;
 
 				case ALIGN_MOVING_TO_TARGET_DIST_MEASURE_RIGHT:
-					if (currentMillis - lastActionTime >= 10) {
-						currentRightDist = getUltrasonicCM(US_FRONT_RIGHT);
-						lastActionTime = currentMillis;
+                    if (currentMillis - lastActionTime >= 10) {
+                        currentRightDist = getUltrasonicCM(US_FRONT_RIGHT);
+                        lastActionTime = currentMillis;
 
-						// Check for invalid ultrasonic readings
-						if (currentLeftDist >= 300 || currentRightDist >= 300 ||
-							currentLeftDist <= 0   || currentRightDist <= 0) {
-							stopRobot();
-							Serial.println("Invalid ultrasonic reading while moving to target, stopping.");
-							currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST; // keep trying to move to target distance
-							break;
-						}
+                        bool leftInvalid  = (currentLeftDist  >= 300 || currentLeftDist  <= 0);
+                        bool rightInvalid = (currentRightDist >= 300 || currentRightDist <= 0);
 
-						int averageDist = (currentLeftDist + currentRightDist) / 2;
-						oledShowText("To " + String(TARGET_WALL_DISTANCE_CM) + "cm",
-									"Avg:" + String(averageDist) + "cm");
+                        if (leftInvalid || rightInvalid) {
+                            stopRobot();
 
-						if (averageDist <= TARGET_WALL_DISTANCE_CM + DISTANCE_TOLERANCE_CM) {
-							stopRobot();
-							Serial.print("Reached target distance of ");
-							Serial.print(TARGET_WALL_DISTANCE_CM);
-							Serial.println("cm.");
-							currentAlignSubState = ALIGN_DONE;
-						} else {
-							// keep moving: next cycle starts with left again
-							currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST_MEASURE_LEFT;
-						}
-					}
-					break;
+                            if (invalidFrontReadingCount == 0) {
+                                invalidFrontStartTime = currentMillis;
+                            }
+
+                            invalidFrontReadingCount++;
+
+                            Serial.print("Invalid while moving to target. Count = ");
+                            Serial.println(invalidFrontReadingCount);
+
+                            if (invalidFrontReadingCount >= ULTRASONIC_999_THRESHOLD ||
+                                (currentMillis - invalidFrontStartTime) >= ULTRASONIC_999_TIMEOUT_MS) {
+                                Serial.println("Ultrasonic stuck at 999 too long while moving. Skipping to next step.");
+                                oledShowText("US Skip", "Proceed Next");
+                                currentAlignSubState = ALIGN_DONE;
+                            } else {
+                                currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST;
+                                lastActionTime = currentMillis;
+                            }
+                            break;
+                        } else {
+                            invalidFrontReadingCount = 0;
+                            invalidFrontStartTime = 0;
+                        }
+
+                        int averageDist = (currentLeftDist + currentRightDist) / 2;
+                        oledShowText("To " + String(TARGET_WALL_DISTANCE_CM) + "cm",
+                                    "Avg:" + String(averageDist) + "cm");
+
+                        if (averageDist <= TARGET_WALL_DISTANCE_CM + DISTANCE_TOLERANCE_CM) {
+                            stopRobot();
+                            Serial.print("Reached target distance of ");
+                            Serial.print(TARGET_WALL_DISTANCE_CM);
+                            Serial.println("cm.");
+                            currentAlignSubState = ALIGN_DONE;
+                        } else {
+                            currentAlignSubState = ALIGN_MOVING_TO_TARGET_DIST_MEASURE_LEFT;
+                        }
+                    }
+                    break;
 
 				case ALIGN_DONE: 
 					currentRobotState = BEHAVIOR_COMPLETE;
@@ -319,7 +412,7 @@ void updateBehaviors() {
 			}
 			break;
 
-        case ALIGNING_SIDE_WALL:
+        case ALIGNING_SIDE_WALL_RIGHT:
             switch (currentAlignSideSubState) {
                 case ALIGN_SIDE_INIT:
                     currentAlignSideSubState = ALIGN_SIDE_MEASURE;
@@ -357,6 +450,65 @@ void updateBehaviors() {
                     } else { // Too close to wall, move left
                         Serial.println("Too close to side wall, moving LEFT");
                         moveRobot(moveLeft, STRAFE_SPEED);
+                        currentAlignSideSubState = ALIGN_SIDE_MOVE_DELAY;
+                        lastActionTime = currentMillis;
+                    }
+                    break;
+
+                case ALIGN_SIDE_MOVE_DELAY:
+                    if (currentMillis - lastActionTime >= SIDE_ALIGN_MOVE_DURATION_MS) {
+                        stopRobot();
+                        currentAlignSideSubState = ALIGN_SIDE_MEASURE; // Re-measure after move
+                        lastActionTime = currentMillis;
+                    }
+                    break;
+
+                case ALIGN_SIDE_DONE:
+                    currentRobotState = BEHAVIOR_COMPLETE;
+                    Serial.println("Side wall alignment complete.");
+                    oledShowText("Side Aligned!", "Dist: " + String(targetSideDistanceCM) + "cm");
+                    break;
+            }
+            break;
+
+        case ALIGNING_SIDE_WALL_LEFT:
+            switch (currentAlignSideSubState) {
+                case ALIGN_SIDE_INIT:
+                    currentAlignSideSubState = ALIGN_SIDE_MEASURE;
+                    lastActionTime = currentMillis;
+                    break;
+
+                case ALIGN_SIDE_MEASURE:
+                    if (currentMillis - lastActionTime >= 100) { // Delay before taking reading
+                        currentSideDist = getUltrasonicCM(US_SIDE_LEFT);
+                        lastActionTime = currentMillis;
+                        currentAlignSideSubState = ALIGN_SIDE_CHECK_DIST;
+                    }
+                    break;
+
+                case ALIGN_SIDE_CHECK_DIST:
+                    oledShowText("Aligning Side", "Dist:" + String(currentSideDist) + "cm");
+
+                    if (currentSideDist >= 300 || currentSideDist <= 0) {
+                        stopRobot();
+                        Serial.println("Invalid side ultrasonic reading, re-measuring...");
+                        currentAlignSideSubState = ALIGN_SIDE_MEASURE;
+                        lastActionTime = currentMillis;
+                        break;
+                    }
+
+                    if (abs(currentSideDist - targetSideDistanceCM) <= DISTANCE_TOLERANCE_CM) {
+                        stopRobot();
+                        Serial.println("Side wall alignment achieved.");
+                        currentAlignSideSubState = ALIGN_SIDE_DONE;
+                    } else if (currentSideDist > targetSideDistanceCM) { // Too far from wall, move right
+                        Serial.println("Too far from side wall, moving LEFT");
+                        moveRobot(moveLeft, STRAFE_SPEED);
+                        currentAlignSideSubState = ALIGN_SIDE_MOVE_DELAY;
+                        lastActionTime = currentMillis;
+                    } else { // Too close to wall, move left
+                        Serial.println("Too close to side wall, moving RIGHT");
+                        moveRobot(moveRight, STRAFE_SPEED);
                         currentAlignSideSubState = ALIGN_SIDE_MOVE_DELAY;
                         lastActionTime = currentMillis;
                     }
@@ -438,6 +590,77 @@ void updateBehaviors() {
                     break;
             }
             break;
+                case ALIGNING_POST_TURN_FRONT_DISTANCE:
+            switch (currentPostTurnFrontSubState) {
+                case POST_TURN_FRONT_INIT:
+                    stopRobot();
+                    currentPostTurnFrontSubState = POST_TURN_FRONT_MEASURE_LEFT;
+                    lastActionTime = currentMillis;
+                    break;
+
+                case POST_TURN_FRONT_MEASURE_LEFT:
+                    if (currentMillis - lastActionTime >= 60) {
+                        currentLeftDist = getUltrasonicCM(US_FRONT_LEFT);
+                        lastActionTime = currentMillis;
+                        currentPostTurnFrontSubState = POST_TURN_FRONT_MEASURE_RIGHT;
+                    }
+                    break;
+
+                case POST_TURN_FRONT_MEASURE_RIGHT:
+                    if (currentMillis - lastActionTime >= 60) {
+                        currentRightDist = getUltrasonicCM(US_FRONT_RIGHT);
+                        lastActionTime = currentMillis;
+                        currentPostTurnFrontSubState = POST_TURN_FRONT_CHECK;
+                    }
+                    break;
+
+                case POST_TURN_FRONT_CHECK: {
+                    oledShowText("Post-Turn Front",
+                                 "L:" + String(currentLeftDist) + " R:" + String(currentRightDist));
+
+                    if (currentLeftDist >= 300 || currentRightDist >= 300 ||
+                        currentLeftDist <= 0   || currentRightDist <= 0) {
+                        stopRobot();
+                        Serial.println("Invalid post-turn front reading, re-measuring...");
+                        currentPostTurnFrontSubState = POST_TURN_FRONT_MEASURE_LEFT;
+                        lastActionTime = currentMillis;
+                        break;
+                    }
+
+                    int averageDist = (currentLeftDist + currentRightDist) / 2;
+
+                    if (abs(averageDist - targetPostTurnFrontDistanceCM) <= DISTANCE_TOLERANCE_CM) {
+                        stopRobot();
+                        Serial.println("Post-turn front distance achieved.");
+                        currentPostTurnFrontSubState = POST_TURN_FRONT_DONE;
+                    } else if (averageDist > targetPostTurnFrontDistanceCM) {
+                        Serial.println("Too far from post-turn front wall, moving FORWARD");
+                        moveRobot(moveForward, MAIN_SPEED);
+                        currentPostTurnFrontSubState = POST_TURN_FRONT_MOVE_DELAY;
+                        lastActionTime = currentMillis;
+                    } else {
+                        Serial.println("Too close to post-turn front wall, moving BACKWARD");
+                        moveRobot(moveBackward, MAIN_SPEED);
+                        currentPostTurnFrontSubState = POST_TURN_FRONT_MOVE_DELAY;
+                        lastActionTime = currentMillis;
+                    }
+                    break;
+                }
+
+                case POST_TURN_FRONT_MOVE_DELAY:
+                    if (currentMillis - lastActionTime >= POST_TURN_FRONT_MOVE_DURATION_MS) {
+                        stopRobot();
+                        currentPostTurnFrontSubState = POST_TURN_FRONT_MEASURE_LEFT;
+                        lastActionTime = currentMillis;
+                    }
+                    break;
+
+                case POST_TURN_FRONT_DONE:
+                    currentRobotState = BEHAVIOR_COMPLETE;
+                    oledShowText("Post-Turn Front", "Done");
+                    break;
+            }
+            break;
 
         case DETECTING_COLOR: // Color detection
             switch (currentColorTurnSubState) {
@@ -452,6 +675,7 @@ void updateBehaviors() {
                     if (currentMillis - lastActionTime >= 100) { // Small delay before reading color
                         detectedColor = detectFloorColor();
                         if (detectedColor != 0) { // If color detected
+                            lastDetectedColor = detectedColor;   // remember result for mission flow
                             currentColorTurnSubState = COLOR_TURN_ACTION;
                             lastActionTime = currentMillis;
                         } else {

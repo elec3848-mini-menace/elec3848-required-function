@@ -91,7 +91,8 @@ int getUltrasonicCM(UltrasonicSensorID sensor_id) {
             break;
         case US_SIDE_LEFT:
             trigPin = LEFT_US_TRIG_SIDE;
-            trigPin = LEFT_US_ECHO_SIDE;
+            echoPin = LEFT_US_ECHO_SIDE;
+            break;
         default:
             // Handle invalid sensor index, return a large value to indicate error
             return 999;
@@ -174,18 +175,25 @@ int detectFloorColor() {
 
     if (total == 0) return 0;
 
+    // Calculate Percentages (matches your 28, 43, 29 data)
     int rP = (int)((r_int / total) * 100);
     int gP = (int)((g_int / total) * 100);
 
-    if (gP > GREEN_MIN_PERCENT) {
+    // --- DETECTION BASED ON YOUR DATA ---
+    
+    // Your Green Paper was 43%. Your Pink Floor was 30%.
+    // So, if Green is > 38%, it's definitely the paper.
+    if (gP > 38) {
         Serial.println("GREEN detected");
         return 1;
     }
 
-    if (rP > RED_MIN_PERCENT) {
+    // Your Red Paper was 66%.
+    if (rP > 55) {
         Serial.println("RED detected");
         return 2;
     }
 
+    // ALWAYS return 0 if nothing is found to prevent freezing
     return 0; 
 }

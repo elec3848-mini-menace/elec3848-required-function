@@ -1,5 +1,4 @@
 #include <Arduino.h>
-
 #include "config_pins.h"
 #include "motor.h"
 #include "sensors.h"
@@ -13,20 +12,27 @@ const unsigned long MOTOR_SYNC_INTERVAL = 1;  // Call motorSyncService every 1ms
 // Enum for the overall mission sequence
 enum MissionState {
     MISSION_INIT,
-    MISSION_STEP_MOVE,          // Move forward a certain distance
+    MISSION_STEP_MOVE,
     MISSION_STEP_WAIT_0,
-    MISSION_STEP_ALIGN_FRONT_1, // Align to front wall (first time)
+    MISSION_STEP_ALIGN_FRONT_1,
     MISSION_STEP_WAIT_1,
-    MISSION_STEP_ALIGN_SIDE,    // Align to right side wall
-    MISSION_STEP_WAIT_2,
-    MISSION_STEP_ALIGN_LIGHT,   // Align to light source
+    MISSION_STEP_ALIGN_SIDE_RIGHT,
+    MISSION_STEP_WAIT_R,
+    MISSION_STEP_ALIGN_SIDE_LEFT,
+    MISSION_STEP_WAIT_L,
+    MISSION_STEP_ALIGN_LIGHT,
     MISSION_STEP_WAIT_3,
-    MISSION_STEP_ALIGN_FRONT_2, // Re-align to front wall
+    MISSION_STEP_ALIGN_FRONT_2,
     MISSION_STEP_WAIT_4,
-    MISSION_STEP_DETECT_COLOR,  // Detect color and turn
+    MISSION_STEP_DETECT_COLOR,
+
+    // NEW post-turn sequence
     MISSION_STEP_WAIT_5,
-    MISSION_STEP_ALIGN_FRONT_3, // Final align to front wall
+    MISSION_STEP_POST_TURN_FRONT,
     MISSION_STEP_WAIT_6,
+    MISSION_STEP_POST_TURN_SIDE,
+    MISSION_STEP_WAIT_7,
+
     MISSION_DONE_FINAL
 };
 MissionState currentMissionState = MISSION_INIT;
@@ -107,23 +113,44 @@ void loop() {
 			// Short delay
 			if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
 				Serial.println("Mission: Starting Step 2 (Align with Side Wall)");
-				startAlignWithSideWall(TARGET_SIDE_WALL_DISTANCE_CM);
-				currentMissionState = MISSION_STEP_ALIGN_SIDE;
+				startAlignWithSideWallRight(TARGET_SIDE_WALL_DISTANCE_CM);
+
+				currentMissionState = MISSION_STEP_ALIGN_SIDE_RIGHT;
 			}
 			break;
 
-		case MISSION_STEP_ALIGN_SIDE:
+		case MISSION_STEP_ALIGN_SIDE_RIGHT:
 			// Wait for the side wall alignment behavior to complete
 			if (currentRobotState == BEHAVIOR_COMPLETE) {
 				Serial.println("Mission: Step 2 (Side Align) Complete.");
 				oledShowText("Side Aligned!", "Next: Light Align");
 				lastMissionActionTime = currentMillis;
-				currentMissionState = MISSION_STEP_WAIT_2;
+				currentMissionState = MISSION_STEP_WAIT_R;
 				currentRobotState = IDLE;
 			}
 			break;
 
-		case MISSION_STEP_WAIT_2:
+		case MISSION_STEP_WAIT_R:
+			// Short delay
+			if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
+				Serial.println("Mission: Starting Step 3 (Align to Light Source)");
+				startAlignToLightSource();
+				currentMissionState = MISSION_STEP_ALIGN_LIGHT;
+			}
+			break;
+
+		case MISSION_STEP_ALIGN_SIDE_LEFT:
+			// Wait for the side wall alignment behavior to complete
+			if (currentRobotState == BEHAVIOR_COMPLETE) {
+				Serial.println("Mission: Step 2 (Side Align) Complete.");
+				oledShowText("Side Aligned!", "Next: Light Align");
+				lastMissionActionTime = currentMillis;
+				currentMissionState = MISSION_STEP_WAIT_L;
+				currentRobotState = IDLE;
+			}
+			break;
+
+		case MISSION_STEP_WAIT_L:
 			// Short delay
 			if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
 				Serial.println("Mission: Starting Step 3 (Align to Light Source)");
@@ -172,46 +199,73 @@ void loop() {
 			}
 			break;
 
-		case MISSION_STEP_DETECT_COLOR:
-			// Wait for color detection and turn behavior to complete
-			if (currentRobotState == BEHAVIOR_COMPLETE) {
-				Serial.println("Mission: Step 5 (Color Detect & Turn) Complete.");
-				oledShowText("Turned!", "Next: Final Align");
-				lastMissionActionTime = currentMillis;
-				currentMissionState = MISSION_STEP_WAIT_5;
-				currentRobotState = IDLE;
-			}
-			break;
+		        case MISSION_STEP_DETECT_COLOR:
+            if (currentRobotState == BEHAVIOR_COMPLETE) {
+                Serial.println("Mission: Step 5 (Color Detect & Turn) Complete.");
+                oledShowText("Turned!", "Next: Post Front");
+                lastMissionActionTime = currentMillis;
+                currentMissionState = MISSION_STEP_WAIT_5;
+                currentRobotState = IDLE;
+            }
+            break;
 
-		case MISSION_STEP_WAIT_5:
-			// Short delay
-			if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
-				Serial.println("Mission: Starting Step 6 (Final Align with Front Wall)");
-				startAlignWithWallUsingUltrasonic(); // Re-use front wall alignment
-				currentMissionState = MISSION_STEP_ALIGN_FRONT_3;
-			}
-			break;
+        case MISSION_STEP_WAIT_5:
+            if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
+                Serial.println("Mission: Starting Step 6 (Post-turn Front Distance)");
+                startAlignPostTurnFrontDistance(POST_TURN_FRONT_TARGET_CM);
+                currentMissionState = MISSION_STEP_POST_TURN_FRONT;
+            }
+            break;
 
-		case MISSION_STEP_ALIGN_FRONT_3:
-			// Wait for the final front wall alignment behavior to complete
-			if (currentRobotState == BEHAVIOR_COMPLETE) {
-				Serial.println("Mission: Step 6 (Front Align 3) Complete.");
-				oledShowText("Final Align!", "Mission Done");
-				lastMissionActionTime = currentMillis;
-				currentMissionState = MISSION_STEP_WAIT_6;
-				stopRobot();               // Ensure robot is stopped after alignment
-				currentRobotState = IDLE;  // Reset behavior state
-			}
-			break;
+        case MISSION_STEP_POST_TURN_FRONT:
+            if (currentRobotState == BEHAVIOR_COMPLETE) {
+                Serial.println("Mission: Step 6 (Post-turn Front Distance) Complete.");
+                oledShowText("Front OK!", "Next: Post Side");
+                lastMissionActionTime = currentMillis;
+                currentMissionState = MISSION_STEP_WAIT_6;
+                currentRobotState = IDLE;
+            }
+            break;
 
-		case MISSION_STEP_WAIT_6:
-			// Short delay after mission completion
-			if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
-				Serial.println("Mission: All steps complete.");
-				oledShowText("Mission Complete", "Robot Idle");
-				currentMissionState = MISSION_DONE_FINAL;
-			}
-			break;
+        case MISSION_STEP_WAIT_6:
+            if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
+                int lastColor = getLastDetectedColor();
+
+                if (lastColor == 1) {
+                    // Green -> turned LEFT -> use RIGHT side ultrasonic
+                    Serial.println("Mission: Starting Step 7 (Post-turn Side Align using RIGHT ultrasonic)");
+                    startAlignWithSideWallRight(POST_TURN_SIDE_TARGET_CM);
+                } else if (lastColor == 2) {
+                    // Red -> turned RIGHT -> use LEFT side ultrasonic
+                    Serial.println("Mission: Starting Step 7 (Post-turn Side Align using LEFT ultrasonic)");
+                    startAlignWithSideWallLeft(POST_TURN_SIDE_TARGET_CM);
+                } else {
+                    Serial.println("Mission: Unknown last color, defaulting to RIGHT side ultrasonic");
+                    startAlignWithSideWallRight(POST_TURN_SIDE_TARGET_CM);
+                }
+
+                currentMissionState = MISSION_STEP_POST_TURN_SIDE;
+            }
+            break;
+
+        case MISSION_STEP_POST_TURN_SIDE:
+            if (currentRobotState == BEHAVIOR_COMPLETE) {
+                Serial.println("Mission: Step 7 (Post-turn Side Align) Complete.");
+                oledShowText("Post Align OK!", "Mission Done");
+                lastMissionActionTime = currentMillis;
+                currentMissionState = MISSION_STEP_WAIT_7;
+                stopRobot();
+                currentRobotState = IDLE;
+            }
+            break;
+
+        case MISSION_STEP_WAIT_7:
+            if (currentMillis - lastMissionActionTime >= SHORT_ACTION_DELAY) {
+                Serial.println("Mission: All steps complete.");
+                oledShowText("Mission Complete", "Robot Idle");
+                currentMissionState = MISSION_DONE_FINAL;
+            }
+            break;
 
 		case MISSION_DONE_FINAL:
 			// Mission is fully complete, robot is idle.
