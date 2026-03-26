@@ -9,23 +9,23 @@
 
 // Movement tuning
 const int MAIN_SPEED = 60;
-const int TURN_SPEED = 40;
+const int TURN_SPEED = 35;
 const int STRAFE_SPEED = 50;
-const int MOTOR_SYNC_DELAY = 250; // Delay before motor sync starts adjusting PWM
+const int MOTOR_SYNC_DELAY = 50; // Delay before motor sync starts adjusting PWM
 
 const float TICKS_PER_CM = 18.0;   // tune: Number of encoder ticks for 1 cm of wheel travel
 const float CM_PER_TICK = 1.0 / TICKS_PER_CM;
-const int WALL_EQUAL_TOLERANCE_CM = 2;
+const int WALL_EQUAL_TOLERANCE_CM = 1;
 const int MOVE_FORWARD_DISTANCE_CM = 25;
 
 // Constants for enhanced wall alignment
 const int ALIGNMENT_CONFIRMATION_THRESHOLD = 3;
-const int TARGET_WALL_DISTANCE_CM = 22;
-const int DISTANCE_TOLERANCE_CM = 2;
+const int TARGET_WALL_DISTANCE_CM = 21;
+const int DISTANCE_TOLERANCE_CM = 1;
 const int ALIGN_TURN_DURATION_MS = 130; // Duration for small corrective turns during alignment
 
 // Constants for side wall alignment
-const int TARGET_SIDE_WALL_DISTANCE_CM = 60;
+const int TARGET_SIDE_WALL_DISTANCE_CM = 63;
 const int SIDE_ALIGN_MOVE_DURATION_MS = 150; // Duration for small strafing movements
 
 // Constants for light sensor alignment
@@ -33,13 +33,14 @@ const int LIGHT_SENSOR_ALIGN_THRESHOLD = 10; // Difference in sensor readings to
 const int LIGHT_SENSOR_MOVE_DURATION_MS = 150; // Duration for small strafing movements for light alignment
 const int LIGHT_SENSOR_STABLE_COUNT_THRESHOLD = 3; // How many times light sensors must be stable
 
-// Constants for color detection and turning
-const int TURN_90_DEGREE_DURATION_MS = 2100; // Approximate duration for a 90-degree turn (needs tuning)
-const int COLOR_READ_DELAY_MS = 50; // Delay between color sensor reads
+const int TURN_90_DEGREE_ENCODER_TICKS = 550;   // starting value, must tune
+//const int TURN_90_TIMEOUT_MS = 2100;            // safety backup only
+const int COLOR_READ_DELAY_MS = 50;   // for sensors.cpp color sensor settling
+const int TURN_90_TIMEOUT_MS  = 3000; // safety timeout for encoder-based turn
 
 // Post-turn alignment targets
 const int POST_TURN_FRONT_TARGET_CM = 15;
-const int POST_TURN_SIDE_TARGET_CM  = 19;
+const int POST_TURN_SIDE_TARGET_CM  = 21;
 
 // Post-turn front distance adjustment
 const int POST_TURN_FRONT_MOVE_DURATION_MS = 120;

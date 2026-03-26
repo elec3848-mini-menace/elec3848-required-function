@@ -15,6 +15,7 @@ void resetEncoderCounts();
 
 // Average encoder ticks (for distance moves)
 long getAverageEncoderCount();
+long getAverageAbsoluteEncoderCount();
 
 // Individual encoder counts (for display/debugging)
 long getFrontLeftEncoderCount();

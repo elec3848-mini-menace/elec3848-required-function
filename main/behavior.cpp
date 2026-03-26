@@ -13,6 +13,19 @@ static long targetEncoderTicks = 0;
 // For skipping ultrasonic alignment if sensor keeps returning 999
 static int invalidFrontReadingCount = 0;
 static unsigned long invalidFrontStartTime = 0;
+static long turnStartTicks = 0;
+static unsigned long turnStartTime = 0;
+
+enum PostTurnAngleSubState {
+    POST_TURN_ANGLE_INIT,
+    POST_TURN_ANGLE_MEASURE_LEFT,
+    POST_TURN_ANGLE_MEASURE_RIGHT,
+    POST_TURN_ANGLE_CHECK,
+    POST_TURN_ANGLE_TURN_DELAY,
+    POST_TURN_ANGLE_DONE
+};
+
+static PostTurnAngleSubState currentPostTurnAngleSubState = POST_TURN_ANGLE_INIT;
 
 // Variables for alignWithWallUsingUltrasonic state machine (front wall)
 enum AlignWallSubState {
@@ -183,6 +196,17 @@ void startAlignPostTurnFrontDistance(float targetDistanceCM) {
 
     oledShowText("Post-Turn Front", "Target:" + String(targetDistanceCM) + "cm");
 }
+
+void startAlignPostTurnAngle() {
+    Serial.println("Start post-turn angle alignment");
+
+    currentRobotState = ALIGNING_POST_TURN_ANGLE;
+    currentPostTurnAngleSubState = POST_TURN_ANGLE_INIT;
+    lastActionTime = millis();
+
+    oledShowText("Post-Turn Angle", "L:--- R:---");
+}
+
 
 int getLastDetectedColor() {
     return lastDetectedColor;
@@ -687,31 +711,46 @@ void updateBehaviors() {
                     break;
 
                 case COLOR_TURN_ACTION:
-                    if (detectedColor == 1) { // Green detected -> turn LEFT (Counterclockwise)
+                    resetEncoderCounts();
+                    turnStartTicks = getAverageAbsoluteEncoderCount();
+                    turnStartTime = currentMillis;
+
+                    if (detectedColor == 1) { // Green -> turn LEFT
                         Serial.println("Green detected, turning LEFT (Counterclockwise)");
                         moveRobot(moveCounterclockwise, TURN_SPEED);
-                    } else if (detectedColor == 2) { // Red detected -> turn RIGHT (Clockwise)
+                    } else if (detectedColor == 2) { // Red -> turn RIGHT
                         Serial.println("Red detected, turning RIGHT (Clockwise)");
                         moveRobot(moveClockwise, TURN_SPEED);
                     } else {
-                        // Should not happen if detectedColor is checked, but as a fallback
                         Serial.println("Unknown color, stopping.");
                         stopRobot();
                         currentColorTurnSubState = COLOR_TURN_DONE;
                         break;
                     }
+
                     oledShowText("Color: " + String(detectedColor == 1 ? "Green" : "Red"), "Turning...");
                     currentColorTurnSubState = COLOR_TURN_DELAY;
-                    lastActionTime = currentMillis;
                     break;
 
-                case COLOR_TURN_DELAY:
-                    if (currentMillis - lastActionTime >= TURN_90_DEGREE_DURATION_MS) {
+                case COLOR_TURN_DELAY: {
+                    long currentTicks = getAverageAbsoluteEncoderCount();
+
+                    if (currentTicks - turnStartTicks >= TURN_90_DEGREE_ENCODER_TICKS) {
                         stopRobot();
-                        Serial.println("Turn complete.");
+                        delay(200);   // small settling delay
+                        resetEncoderCounts();
+                        Serial.println("Encoder-based 90 degree turn complete.");
+                        currentColorTurnSubState = COLOR_TURN_DONE;
+                    } 
+                    else if (currentMillis - turnStartTime >= TURN_90_TIMEOUT_MS) {
+                        stopRobot();
+                        delay(200);   // small settling delay
+                        resetEncoderCounts();
+                        Serial.println("Turn timeout reached.");
                         currentColorTurnSubState = COLOR_TURN_DONE;
                     }
                     break;
+                }
 
                 case COLOR_TURN_DONE:
                     currentRobotState = BEHAVIOR_COMPLETE;
@@ -720,6 +759,76 @@ void updateBehaviors() {
                     break;
             }
             break;
+            case ALIGNING_POST_TURN_ANGLE:
+    switch (currentPostTurnAngleSubState) {
+        case POST_TURN_ANGLE_INIT:
+            stopRobot();
+            currentPostTurnAngleSubState = POST_TURN_ANGLE_MEASURE_LEFT;
+            lastActionTime = currentMillis;
+            break;
+
+        case POST_TURN_ANGLE_MEASURE_LEFT:
+            if (currentMillis - lastActionTime >= 60) {
+                currentLeftDist = getUltrasonicCM(US_FRONT_LEFT);
+                lastActionTime = currentMillis;
+                currentPostTurnAngleSubState = POST_TURN_ANGLE_MEASURE_RIGHT;
+            }
+            break;
+
+        case POST_TURN_ANGLE_MEASURE_RIGHT:
+            if (currentMillis - lastActionTime >= 60) {
+                currentRightDist = getUltrasonicCM(US_FRONT_RIGHT);
+                lastActionTime = currentMillis;
+                currentPostTurnAngleSubState = POST_TURN_ANGLE_CHECK;
+            }
+            break;
+
+        case POST_TURN_ANGLE_CHECK:
+            oledShowText("Post-Turn Angle",
+                         "L:" + String(currentLeftDist) + " R:" + String(currentRightDist));
+
+            if (currentLeftDist >= 300 || currentRightDist >= 300 ||
+                currentLeftDist <= 0   || currentRightDist <= 0) {
+                stopRobot();
+                Serial.println("Invalid post-turn angle reading, re-measuring...");
+                currentPostTurnAngleSubState = POST_TURN_ANGLE_MEASURE_LEFT;
+                lastActionTime = currentMillis;
+                break;
+            }
+
+            if (abs(currentLeftDist - currentRightDist) <= WALL_EQUAL_TOLERANCE_CM) {
+                stopRobot();
+                Serial.println("Post-turn angle alignment complete.");
+                currentPostTurnAngleSubState = POST_TURN_ANGLE_DONE;
+            } else if (currentLeftDist > currentRightDist) {
+                Serial.println("Left > Right, turning RIGHT");
+                moveRobot(moveClockwise, TURN_SPEED);
+                currentPostTurnAngleSubState = POST_TURN_ANGLE_TURN_DELAY;
+                lastActionTime = currentMillis;
+            } else {
+                Serial.println("Right > Left, turning LEFT");
+                moveRobot(moveCounterclockwise, TURN_SPEED);
+                currentPostTurnAngleSubState = POST_TURN_ANGLE_TURN_DELAY;
+                lastActionTime = currentMillis;
+            }
+            break;
+
+        case POST_TURN_ANGLE_TURN_DELAY:
+            if (currentMillis - lastActionTime >= ALIGN_TURN_DURATION_MS) {
+                stopRobot();
+                delay(80);
+                resetEncoderCounts();
+                currentPostTurnAngleSubState = POST_TURN_ANGLE_MEASURE_LEFT;
+                lastActionTime = currentMillis;
+            }
+            break;
+
+        case POST_TURN_ANGLE_DONE:
+            currentRobotState = BEHAVIOR_COMPLETE;
+            oledShowText("Post-Turn Angle", "Done");
+            break;
+    }
+    break;
 
         case BEHAVIOR_COMPLETE:
 			// A specific behavior (like move or align) has completed.

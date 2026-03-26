@@ -11,11 +11,14 @@ enum RobotState {
     ALIGNING_TO_LIGHT_SOURCE,
     DETECTING_COLOR,
     ALIGNING_POST_TURN_FRONT_DISTANCE,
+    ALIGNING_POST_TURN_ANGLE,
     TURNING_BASED_ON_COLOR,
     BEHAVIOR_COMPLETE
 };
 
 extern RobotState currentRobotState;
+
+void startAlignPostTurnAngle();
 
 // Initialize behavior state machine
 void setupBehaviors();

@@ -359,3 +359,19 @@ void motorSyncService() {
         analogWrite(BACK_RIGHT_PWM, backRightPWM);
     }
 }
+
+long getAverageAbsoluteEncoderCount() {
+    noInterrupts();
+    long fl = frontLeftCount;
+    long fr = frontRightCount;
+    long bl = backLeftCount;
+    long br = backRightCount;
+    interrupts();
+
+    fl = abs(fl);
+    fr = abs(fr);
+    bl = abs(bl);
+    br = abs(br);
+
+    return (fl + fr + bl + br) / 4;
+}
