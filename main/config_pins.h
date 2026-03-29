@@ -99,11 +99,6 @@ const int ULTRASONIC_999_TIMEOUT_MS = 1200;      // or how long it stays bad
 #define COLOR_S3 A15
 #define COLOR_OUT A7
 
-// Bluetooth
-#define BT_RX_PIN 10  // Arduino pin connected to HC-05/06 TX
-#define BT_TX_PIN 11  // Arduino pin connected to HC-05/06 RX
-#define BT_BAUD_RATE 9600 // Common baud rate for HC-05/06 modules
-
 // Movement IDs
 #define moveForward 0
 #define moveBackward 1
