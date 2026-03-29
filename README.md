@@ -1,9 +1,11 @@
-# ELEC3848 Robot Mission Controller
+# ELEC3848 Parking & Alignment Function
 
 An Arduino Mega firmware for a four-wheel mecanum-drive robot that autonomously
 completes a fixed arena mission: navigate to a colour tile, identify it, turn
 90 degrees in the correct direction, and park within target distance of the new
-walls.
+walls. 
+
+Required function for ELEC3848 Integrated Design Project at The University of Hong Kong
 
 ---
 
