@@ -1,3 +1,12 @@
+/**
+ * @file motor.cpp
+ * @brief Mecanum-wheel motor driver implementation.
+ *
+ * Each wheel is driven by an H-bridge (direction pins + PWM pin).  Quadrature
+ * encoders are read via interrupt-driven ISRs.  motorSyncService() uses the
+ * inter-tick timing of each encoder to nudge individual PWM values so that all
+ * four wheels maintain the same speed as the front-left reference wheel.
+ */
 #include "motor.h"
 #include "config_pins.h"
 #include <Arduino.h>

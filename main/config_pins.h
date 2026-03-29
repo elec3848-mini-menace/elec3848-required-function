@@ -1,4 +1,12 @@
-// RequiredFunctionNew/config_pins.h
+/**
+ * @file config_pins.h
+ * @brief Hardware pin assignments and tunable constants for the ELEC3848 robot.
+ *
+ * All Arduino Mega pin numbers and mission-level timing/distance parameters are
+ * centralised here so they can be adjusted in one place without touching other
+ * source files. Constants that are likely to need physical tuning are marked
+ * with a "tune:" note in their comment.
+ */
 #pragma once
 
 // OLED

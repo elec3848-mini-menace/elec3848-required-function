@@ -1,3 +1,7 @@
+/**
+ * @file oled.cpp
+ * @brief SSD1306 128x32 OLED display helpers.
+ */
 #include "oled.h"
 #include "config_pins.h"
 #include <Wire.h>

@@ -1,3 +1,11 @@
+/**
+ * @file sensors.cpp
+ * @brief Sensor driver implementation.
+ *
+ * Implements HC-SR04 ultrasonic ranging, analogue light-intensity reading with
+ * optional two-point calibration, and TCS3200 RGB colour detection for
+ * green/red floor tile identification.
+ */
 #include "sensors.h"
 #include "config_pins.h"
 #include <Arduino.h>
